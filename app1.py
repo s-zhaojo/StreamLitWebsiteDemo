@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="RECLAIM – Global Reservoir Tool", layout="wide")
 st.title("RECLAIM – Global Reservoir Tool 🌍")
 
+# Initialize session state
 for key, default in [("lat_input", 20.0), ("lon_input", 0.0)]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -45,28 +46,28 @@ with st.sidebar:
 
     submitted = st.button("Submit Reservoir Data")
 
-def get_authoritative_coords(map_data):
-    if map_data and map_data.get("last_clicked"):
-        lat = map_data["last_clicked"]["lat"]
-        lon = map_data["last_clicked"]["lng"]
-    else:
-        lat = st.session_state.lat_input
-        lon = st.session_state.lon_input
-    return lat, lon
-
+# Function to create map
 def create_map(lat, lon, tooltip=None):
     m = folium.Map(location=[lat, lon], zoom_start=2, control_scale=True)
     folium.Marker([lat, lon], tooltip=tooltip or "Selected Location").add_to(m)
     return m
 
+# Show map and capture click events
 st.subheader("World Map 🌍 (Click to set location)")
 map_data = st_folium(
     create_map(st.session_state.lat_input, st.session_state.lon_input, tooltip=reservoir_name),
     width=900, height=600
 )
 
-lat, lon = get_authoritative_coords(map_data)
+# Update session state if user clicks on map
+if map_data and map_data.get("last_clicked"):
+    st.session_state.lat_input = map_data["last_clicked"]["lat"]
+    st.session_state.lon_input = map_data["last_clicked"]["lng"]
 
+lat = st.session_state.lat_input
+lon = st.session_state.lon_input
+
+# Simple sedimentation computation
 def compute_sedimentation(I7, I8, I13, I17, I18, years):
     rate = 0.25
     if I13 is not None:
@@ -84,6 +85,7 @@ def compute_sedimentation(I7, I8, I13, I17, I18, years):
     remaining_capacity = I7 * (1 - cumulative_loss / 100)
     return rate, cumulative_loss, remaining_capacity
 
+# Handle form submission
 if submitted:
     required_fields = {
         "I1": start_year,
@@ -104,9 +106,9 @@ if submitted:
     else:
         st.success("Reservoir data submitted successfully!")
 
-        years = end_year - start_year
+        years_count = end_year - start_year
         rate, cumulative_loss, remaining_capacity = compute_sedimentation(
-            I7, I8, I13, I17, I18, years
+            I7, I8, I13, I17, I18, years_count
         )
 
         st.subheader("Reservoir Sedimentation Results")
@@ -115,6 +117,7 @@ if submitted:
         c2.metric("Total Capacity Loss", f"{cumulative_loss:.2f} %")
         c3.metric("Remaining Capacity", f"{remaining_capacity:.2f} million m³")
 
+        # Plot cumulative loss over time
         years_axis = list(range(start_year, end_year + 1))
         loss_curve = [rate * (y - start_year) for y in years_axis]
 
@@ -125,9 +128,11 @@ if submitted:
         ax.set_title("Reservoir Sedimentation Over Time")
         st.pyplot(fig)
 
+        # Map showing the selected location
         st.subheader("Sedimentation Estimate Map")
         st_folium(create_map(lat, lon, tooltip=f"{reservoir_name}\nSed Rate: {rate:.2f}%/yr"), width=900, height=600)
 
+        # Input summary
         st.subheader("Input Summary (I1–I21)")
         st.json({
             "I1": start_year,
@@ -151,6 +156,3 @@ if submitted:
             "I20_uploaded": bool(I20),
             "I21_uploaded": bool(I21),
         })
-        
-        
-
